@@ -1,0 +1,393 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Calculator of Calculator</title>
+        <!-- JQuery -->
+        <script src="https://cdn.bootcss.com/jquery/3.4.1/jquery.js"></script>
+        <!-- Bootstrap -->
+        <link href="https://cdn.bootcss.com/twitter-bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+        <script src="https://cdn.bootcss.com/twitter-bootstrap/4.3.1/js/bootstrap.min.js"></script>
+        <!-- Vue -->
+        <script src="https://cdn.bootcss.com/vue/2.6.10/vue.min.js"></script>
+
+        <style>
+            [v-cloak] { display: none; }
+
+            body {
+                font-size: 40px;
+            }
+
+            .form-control {
+                height: 70px;
+                font-size: 40px;
+                margin-top: 20px;
+            }
+
+            button.btn {
+                font-size: 30px;
+                width: 100px;
+            }
+
+            button.op {
+                font-size: 30px;
+                width: 130px;
+                margin-top: 10px;
+            }
+
+            span {
+                margin: 5px;
+            }
+
+        </style>
+    </head>
+<body>
+<div id="v-app" v-cloak>
+    <div class="container" style="margin-top: 40px;">
+        <div class="row clearfix">
+            <div class="col-md-6 column">
+                <div class="form-group">
+                    <label>Input</label>
+                    <input type="number" class="form-control" v-model.number="params.input"></input>                    
+                </div>
+            </div>
+            <div class="col-md-6 column">
+                <div class="form-group">
+                    <label>Output</label>
+                    <input type="number" class="form-control" v-model.number="params.output"></input>    
+                </div>
+            </div>
+        </div>
+
+        <div class="row clearfix">
+            <div class="col-md-6 column">
+                <div class="form-group">
+                    <label>Step</label>
+                    <input type="number" class="form-control" v-model.number="params.step"></input>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 60px;"></div>
+
+        <div class="row clearfix">
+            <div class="col-md-6 column">
+                <div class="form-group">
+                    <div class="form-group">
+                        <label>Argument</label>
+                        <input type="number" class="form-control" v-model.number="params.argument" ref="argument"></input>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 column" style="text-align: center;">
+                <button class="btn btn-primary op" @click="params.operations.pop()">Pop</button><br>
+                <button class="btn btn-primary op" @click="params.operations=[]">Clear</button>
+            </div>
+        </div>
+
+        <div style="margin-top: 60px;"></div>
+
+        <div class="row clearfix" v-for="rowOperators in getGroupedOperators()">
+            <div class="col-md-4 column" v-for="operator in rowOperators">
+                <div class="form-group" style="margin-top: 0px;">
+                    <button v-html="operator.displayHtml" class="btn" :class="'btn-' + operator.style" @click="addOperation(operator, params.argument)"></button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row clearfix">
+            <div class="col-md-12 column">
+                <div style="width: 100%; background-color: bisque; height: 200px; padding: 10px;">
+                    <template v-for="operation in params.operations">
+                        <span class="badge" :class="'badge-' + operation.operator.style">{{ operation.operator.display(operation.argument) }}</span>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 60px;"></div>
+
+        <div class="row clearfix">
+            <div class="col-md-6 column">
+                <button class="btn btn-warning" @click="run()">GO!</button><br>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;"></div>
+
+        <div class="row clearfix">
+            <div class="col-md-12 column">
+                <div style="width: 100%; background-color: bisque; height: 200px; padding: 10px;">
+                    <template v-for="operation in resultSet">
+                        <span class="badge" :class="'badge-' + operation.operator.style">{{ operation.operator.display(operation.argument) }}</span>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>
+
+<!--
+The goal is to calculate from input to output using selected operators with specific steps    
+Some Terms:
+Opeartor: uniary operator like reverse or add/sub/mutiple/divide 
+Operation: Including one operator and its argument
+resultSet: The solution to the problem
+-->
+<script>
+    const operators = [
+        {
+            operator: "+",
+            displayHtml: "+",
+            needArgument: true,
+            style: "secondary",
+            display: function(arg) { return `+${arg}` },
+            calculate: function(number, arg) { return number + arg },
+        },
+        {
+            operator: "-",
+            displayHtml: "-",
+            needArgument: true,
+            style: "secondary",
+            display: function(arg) { return `-${arg}` },
+            calculate: function(number, arg) { return number - arg },
+        },
+        {
+            operator: "*",
+            displayHtml: "*",
+            needArgument: true,
+            style: "secondary",
+            display: function(arg) { return `*${arg}` },
+            calculate: function(number, arg) { return number * arg },
+        },
+        {
+            operator: "/",
+            displayHtml: "/",
+            needArgument: true,
+            style: "secondary",
+            display: function(arg) { return `/${arg}` },
+            calculate: function(number, arg) {
+                if (arg === 0) {
+                    throw "Error";
+                }
+                const result = number / arg;
+                const dotIndex = result.toString().indexOf(".");
+                if (dotIndex < 0) {
+                    return result;
+                }
+                const pointNumber = result.toString().length - dotIndex - 1;
+                if (pointNumber <= 3) {
+                    return result;
+                }
+                throw "Error";
+            },
+        },
+        {
+            operator: "^",
+            displayHtml: "x<sup>y</sup>",
+            needArgument: true,
+            style: "warning",
+            display: function(arg) { return `^${arg}` },
+            calculate: function(number, arg) { return number ** arg },
+        },
+        {
+            operator: "+/-",
+            displayHtml: "+/-",
+            needArgument: false,
+            style: "success",
+            display: function(arg) { return `+/-` },
+            calculate: function(number, arg) { return -number },
+        },
+        {
+            operator: ">>",
+            displayHtml: ">>",
+            needArgument: true,
+            style: "info",
+            display: function(arg) { return `>>${arg}` },
+            calculate: function(number, arg) {
+                if (number.toString().indexOf(".") >= 0) {
+                    throw "Error";
+                }
+                if (arg < 0 || number.toString().indexOf(".") >= 0) {
+                    throw "Error";
+                }
+                return parseInt(number.toString() + arg.toString());
+            },
+        },
+        {
+            operator: "<<",
+            displayHtml: "<<",
+            needArgument: false,
+            style: "info",
+            display: function(arg) { return `<<${arg}`},
+            calculate: function(number, arg) {
+                if (number.toString().indexOf(".") >= 0) {
+                    throw "Error";
+                }
+                const str = number.toString();
+                return parseInt(str.length <= 1? "0": str.substring(0, str.length - 1));
+            },
+        },
+        {
+            operator: "rev",
+            displayHtml: "rev",
+            needArgument: false,
+            style: "danger",
+            display: function(arg) { return `rev` },
+            calculate: function(number, arg) {
+                if (number.toString().indexOf(".") >= 0) {
+                    throw "Error";
+                }
+                const lessThanZero = number < 0;
+                if (lessThanZero) {
+                    number = -number;
+                }
+                const str = number.toString();
+                return (lessThanZero ? -1 : 1) * parseInt(str.split("").reverse().join(""));
+            },
+        },
+        {
+            operator: "sum",
+            displayHtml: "sum",
+            needArgument: false,
+            style: "danger",
+            display: function(arg) { return `sum` },
+            calculate: function(number, arg) {
+                let sum = 0;
+                number.toString().split("").forEach(x => {
+                    if (x !== ".") {
+                        sum += parseInt(x);
+                    }
+                });
+                return sum;
+            },
+        },
+        {
+            operator: "=>",
+            displayHtml: "=>",
+            needArgument: true,
+            style: "primary",
+            display: function(arg) {
+                const args = arg.toString().split(".");
+                if (!args[1]) {
+                    args[1] = "0";
+                }
+                args[1] = args[1].split("").reverse().join("");
+                return `${args[0]}=>${args[1]}`;
+            },
+            calculate: function(number, arg) {
+                const args = arg.toString().split(".");
+                if (!args[1]) {
+                    args[1] = "0";
+                }
+                args[1] = args[1].split("").reverse().join("");
+                return parseFloat(number.toString().replace(new RegExp(args[0],'gm'), args[1]));
+            }
+        }
+    ];
+
+    const noSolution = {
+        operator: "No Solution",
+        displayHtml: "No Solution!",
+        needArgument: false,
+        style: "danger",
+        display: function(arg){
+            return this.displayHtml;
+        },
+        calculate: function(number, arg){
+            return undefined;
+        }
+    }
+
+    const vueObject = new Vue({
+        el: "#v-app",
+        data: {
+            operators: operators,
+            params: {
+                input: 0,
+                output: 22,
+                step: 7,
+                argument: 3,
+                operations: []
+            },
+            resultSet: []
+        },
+        methods: {
+            getGroupedOperators: function() {
+                const col = 3;
+                const ret = [];
+                let temp = [];                
+                for (operator of operators){                    
+                    temp.push(operator);
+                    if (temp.length == col){
+                        ret.push(temp);
+                        temp = [];
+                    }
+                }
+                if (temp.length > 0){
+                    ret.push(temp);
+                }
+                return ret;
+            },
+            addOperation: function(operator, argument) {                
+                if (argument == "") {
+                    this.params.argument = 0;
+                    arguemnt = 0;
+                }
+
+                this.params.operations.push({
+                    operator: operator,
+                    argument: argument
+                });
+               
+            },
+            internalRun: function(operations, value, step) {
+
+                console.log(operations.filter((e, i) => i < step).map(o => o.operator.display(o.argument)).join(), value, step);
+
+                if (step == this.params.step && value == this.params.output) {
+                    this.resultSet = operations;
+                    return;
+                }
+                if (step >= this.params.step) {
+                    return;
+                }
+
+                for (operation of this.params.operations) {
+                    if (this.resultSet.length > 0) {
+                        return;
+                    }
+                    let error = false;
+                    let v = 0;
+                    try
+                    {
+                        v = operation.operator.calculate(value, operation.argument);
+                    }
+                    catch (e){
+                        error = true;
+                    }
+                    if (error || v == value) {
+                        continue;
+                    }
+                    operations[step] = operation;
+                    this.internalRun(operations, v, step + 1);
+                }
+
+               
+            },
+            run: function() {
+                this.resultSet = [];                
+                this.internalRun([], this.params.input, 0);
+                if (this.resultSet.length == 0){
+                    this.resultSet.push({
+                        operator: noSolution,
+                        argument: this.params.arguemnt});
+                }
+
+            }
+        }
+    });
+
+</script>
